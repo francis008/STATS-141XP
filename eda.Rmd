@@ -1,0 +1,23 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-05-12"
+---
+
+```{r}
+install.packages("readxl")
+library(readxl)
+summer <- read_excel("Mr Wahl data spring 25.xlsx")
+m1 <- lm(count_of_courses_taken ~ californian + all_online, data = summer)
+summary(m1)
+plot(californian ~ count_of_courses_taken, data = summer)
+hist(summer)
+c_summer <- summer[summer$californian==1,]
+nc_summer <- summer[summer$californian==0,]
+
+par(2)
+hist(c_summer$count_of_courses_taken)
+hist(nc_summer$count_of_courses_taken)
+summary(lm(count_of_courses_taken ~ californian, data = summer))
+summary(lm(all_online ~ californian + lower_division_course_ct + arts_ct + engineering_ct, data = summer))
+```
