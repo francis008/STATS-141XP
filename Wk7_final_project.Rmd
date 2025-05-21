@@ -1,0 +1,129 @@
+---
+title: "Stats 141XP"
+author: "Brian"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+df <- read.csv("wahl_data.csv")
+```
+
+# Correlation of courses taken against classes
+
+```{r}
+df_selected <- df %>%
+  select(count_of_courses_taken, arts_ct, engineering_ct, humanities_ugeduc_ct,
+         life_sci_ct, phys_sci_ct, soc_sci_intl_inst_ct, mgmt_ct, other_prof_ct)
+
+cor_matrix <- cor(df_selected, use = "complete.obs")
+
+cor_matrix["count_of_courses_taken", ]
+
+```
+
+```{r}
+cor_df <- as.data.frame(cor_matrix["count_of_courses_taken", ])
+cor_df$subject <- rownames(cor_df)
+colnames(cor_df)[1] <- "correlation"
+
+cor_df <- cor_df %>% filter(subject != "count_of_courses_taken")
+
+ggplot(cor_df, aes(x = reorder(subject, correlation), y = correlation)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Correlation with Total Courses Taken",
+       x = "Subject Area",
+       y = "Correlation") +
+  theme_minimal()
+
+```
+Arts have a moderately positive correlation with Total Courses taken with UCLA
+
+
+# Average courses per subject, separated by online or not
+
+```{r}
+df %>%
+  group_by(all_online) %>%
+  summarise(across(c(arts_ct, engineering_ct, humanities_ugeduc_ct, 
+                     life_sci_ct, phys_sci_ct, soc_sci_intl_inst_ct, 
+                     mgmt_ct, other_prof_ct), mean, na.rm = TRUE))
+```
+
+
+```{r}
+# Pivot for plotting
+df_long_online <- df %>%
+  group_by(all_online) %>%
+  summarise(across(ends_with("_ct") & !c(online_course_ct, lower_division_course_ct, count_of_courses_taken), 
+                   mean, na.rm = TRUE)) %>%
+  pivot_longer(-all_online, names_to = "subject", values_to = "mean_courses")
+
+# Plot
+ggplot(df_long_online, aes(x = subject, y = mean_courses, fill = factor(all_online))) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  labs(title = "Average Courses per Subject: Fully Online vs Not",
+       x = "Subject", y = "Average Courses",
+       fill = "Fully Online (1 = Yes)") +
+  theme_minimal()
+```
+
+Arts, social sciences, management, humanities, life sciences are more popular online
+Physical sciences and engineering are more popular offline
+
+# Lower Division Courses percentage
+
+```{r}
+df_lower <- df %>%
+  mutate(pct_lower_div = lower_division_course_ct / count_of_courses_taken)
+
+summary(df_lower$pct_lower_div)
+```
+```{r}
+ggplot(df_lower, aes(x = pct_lower_div)) +
+  geom_histogram(binwidth = 0.1, fill = "steelblue", color = "white") +
+  labs(title = "Distribution of Lower Division Course Proportion",
+       x = "Proportion of Lower Division Courses",
+       y = "Number of Students") +
+  theme_minimal()
+```
+
+# Arts vs Non Arts Lower Div
+
+```{r}
+df_arts <- df %>% 
+   filter(arts_ct %in% c(2, 4))
+
+df_arts <- df_arts %>%
+  mutate(pct_lower_div = lower_division_course_ct / count_of_courses_taken)
+
+df_non_arts <- df %>% 
+  filter(arts_ct %in% c(0, 1)) %>%
+  mutate(pct_lower_div = lower_division_course_ct / count_of_courses_taken)
+
+# Compare mean proportions
+mean(df_arts$pct_lower_div, na.rm = TRUE)
+mean(df_non_arts$pct_lower_div, na.rm = TRUE)
+
+t.test(df_arts$pct_lower_div, df_non_arts$pct_lower_div)
+```
+
+```{r}
+df %>%
+  mutate(pct_lower_div = lower_division_course_ct / count_of_courses_taken,
+         group = ifelse(arts_ct %in% c(2, 4), "Took Arts", "No Arts")) %>%
+  ggplot(aes(x = group, y = pct_lower_div, fill = group)) +
+  geom_boxplot() +
+  labs(title = "Proportion of Lower Division Courses: Arts vs Non-Arts",
+       y = "Proportion Lower Division") +
+  theme_minimal()
+```
+
+
