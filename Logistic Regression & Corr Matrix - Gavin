@@ -1,0 +1,66 @@
+---
+title: "141 Group Project"
+author: "Gavin Cardeno"
+output: html_document
+date: "2025-05-21"
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+library(corrplot)
+
+data <- read_excel("/Users/gavcard/Downloads/Mr Wahl data spring 25.xlsx")
+
+# check missing values
+colSums(is.na(data))
+
+cor_matrix <- cor(data %>% select(where(is.numeric)))
+round(cor_matrix, 3)
+
+# correlation matrix
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         tl.cex = 0.8,
+         title = "Correlation Matrix",
+         mar = c(0,0,1,0))  # Adjust margins to fit title
+
+```
+
+## In Brief:
+
+**>   Students taking all courses online tend to have fewer total courses and are less likely to be in-state.**
+
+**>   The number of courses taken and residency status are modestly associated with online enrollment patterns.**
+
+**>   Arts courses are popular but less likely to be taken fully online.**
+
+
+
+```{r}
+data <- data %>% # data prep
+  mutate(
+    total_courses = lower_division_course_ct + arts_ct + engineering_ct + humanities_ugeduc_ct +
+                    life_sci_ct + phys_sci_ct + soc_sci_intl_inst_ct + mgmt_ct + other_prof_ct,
+    only_online = if_else(online_course_ct == total_courses & total_courses > 0, 1, 0)
+  )
+
+# Logistic Regression -- predicting taking only online courses
+model1 <- glm(
+  only_online ~ californian + lower_division_course_ct + arts_ct + engineering_ct + humanities_ugeduc_ct +
+                life_sci_ct + phys_sci_ct + soc_sci_intl_inst_ct + mgmt_ct + other_prof_ct,
+  family = binomial(),
+  data = data
+)
+
+summary(model1)
+```
+
+## Findings:
+
+**Out-of-state students are significantly more likely to take only online courses.**
+
+**Taking more arts, physical science, or social science courses is associated with lower odds of being exclusively online.**
+
+**Some variables are not useful here due to data issues (large SEs).**
