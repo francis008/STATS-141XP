@@ -1,0 +1,194 @@
+---
+title: "STATS 141 XP Final Project"
+author: "William McCormack"
+date: "2025-05-19"
+output: html_document
+---
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(janitor)
+```
+
+```{r}
+
+# Load data
+df <- read_excel("Mr Wahl data spring 25.xlsx")
+
+# Convert to logical
+df <- df %>%
+  mutate(
+    californian = as.logical(californian),
+    all_online = as.logical(all_online)
+  )
+
+```
+
+```{r}
+# View variable summaries
+summary(df)
+
+# Alternatively, summarize all predictors except case number
+df %>%
+  select(-casenumber) %>%
+  summary()
+
+```
+
+```{r}
+# Compute pairwise correlations
+cor(df %>% select(where(is.numeric)))
+
+```
+
+```{r}
+# Run logistic regressions for each predictor against all_online
+logistic_results <- lapply(
+  names(df)[!(names(df) %in% c("casenumber", "all_online"))],
+  function(var) {
+    f <- as.formula(paste("all_online ~", var))
+    model <- glm(f, data = df, family = "binomial")
+    summary(model)
+  }
+)
+
+```
+
+```{r}
+library(glmnet)
+
+X <- model.matrix(
+  all_online ~ . - casenumber,
+  data = df
+)[, -1]
+
+y <- df$all_online
+
+cv_fit <- cv.glmnet(X, y, family = "binomial", alpha = 0)
+coef(cv_fit, s = "lambda.min")
+
+```
+
+```{r}
+# Penalized version of the final model
+X_final <- model.matrix(all_online ~ online_course_ct + count_of_courses_taken, data = df)[, -1]
+y_final <- df$all_online
+
+cv_final <- cv.glmnet(X_final, y_final, family = "binomial", alpha = 0)
+coef(cv_final, s = "lambda.min")
+
+```
+```{r}
+# Install if needed
+install.packages("pROC")
+
+# Load library
+library(pROC)
+
+# Use predicted probabilities from glm
+logit_model <- glm(all_online ~ online_course_ct + count_of_courses_taken, data = df, family = "binomial")
+pred_probs <- predict(logit_model, type = "response")
+
+# Plot ROC and get AUC
+roc_obj <- roc(df$all_online, pred_probs)
+plot(roc_obj, main = "ROC Curve")
+auc(roc_obj)
+
+```
+
+################################################################################
+
+```{r}
+cv.glmnet(X, y, family = "binomial", alpha = 0)
+```
+
+```{r}
+# Re-create model matrix for your penalized model
+X <- model.matrix(all_online ~ online_course_ct + count_of_courses_taken, data = df)[, -1]
+y <- df$all_online
+
+# Use glmnet
+library(glmnet)
+cv_fit <- cv.glmnet(X, y, family = "binomial", alpha = 0)
+
+# Predict probabilities
+pred_probs <- predict(cv_fit, newx = X, s = "lambda.min", type = "response")
+
+# Evaluate AUC with pROC
+library(pROC)
+roc_obj <- roc(y, as.vector(pred_probs))
+plot(roc_obj, main = "ROC Curve (glmnet)")
+auc(roc_obj)
+
+```
+
+###########################################################################
+
+```{r}
+# Load libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(broom)
+library(pROC)
+
+# Load and prep data
+df <- read_excel("Mr Wahl data spring 25.xlsx") %>%
+  mutate(
+    californian = as.logical(californian),
+    all_online = as.logical(all_online),
+    takes_two_plus = count_of_courses_taken > 1
+  )
+
+### ------------------------
+### MODEL 1: Predict all_online
+### ------------------------
+
+model1 <- glm(all_online ~ californian + count_of_courses_taken, data = df, family = "binomial")
+summary(model1)
+
+# Model 1: Visualization
+ggplot(df, aes(x = factor(californian), fill = factor(all_online))) +
+  geom_bar(position = "fill") +
+  labs(x = "In-State Residency", y = "Proportion", fill = "All Online?",
+       title = "All-Online vs In-State Status") +
+  theme_minimal()
+
+# Optional: AUC
+probs1 <- predict(model1, type = "response")
+roc1 <- roc(df$all_online, probs1)
+plot(roc1, main = "ROC Curve: Model 1")
+auc(roc1)
+
+# Model 1: Slide-Ready Summary
+tidy(model1, exponentiate = TRUE, conf.int = TRUE)
+
+### ------------------------
+### MODEL 2: Predict takes_two_plus
+### ------------------------
+
+model2 <- glm(takes_two_plus ~ californian + online_course_ct, data = df, family = "binomial")
+summary(model2)
+
+# Model 2: Visualization
+ggplot(df, aes(x = factor(californian), fill = factor(takes_two_plus))) +
+  geom_bar(position = "fill") +
+  labs(x = "In-State Residency", y = "Proportion", fill = "Takes 2+ Courses?",
+       title = "Course Load vs In-State Status") +
+  theme_minimal()
+
+# Optional: AUC
+probs2 <- predict(model2, type = "response")
+roc2 <- roc(df$takes_two_plus, probs2)
+plot(roc2, main = "ROC Curve: Model 2")
+auc(roc2)
+
+# Model 2: Slide-Ready Summary
+tidy(model2, exponentiate = TRUE, conf.int = TRUE)
+
+```
+
+
+
+
